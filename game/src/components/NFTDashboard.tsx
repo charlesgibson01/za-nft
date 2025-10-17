@@ -229,6 +229,23 @@ export function NFTDashboard() {
         throw new Error('Relayer instance or address unavailable');
       }
 
+      // Treat all-zero ciphertext handles as plaintext 0 without calling the relayer
+      const isZeroHandle = (h: string) => {
+        const raw = h.startsWith('0x') ? h.slice(2) : h;
+        return raw.length > 0 && /^0+$/.test(raw);
+      };
+
+      const result: Record<string, string> = {};
+      const nonZeroHandles = handles.filter((h) => {
+        const zero = isZeroHandle(h);
+        if (zero) result[h] = '0';
+        return !zero;
+      });
+
+      if (nonZeroHandles.length === 0) {
+        return result;
+      }
+
       const keypair = instance.generateKeypair();
       const startTimeStamp = Math.floor(Date.now() / 1000).toString();
       const durationDays = '10';
@@ -252,12 +269,12 @@ export function NFTDashboard() {
         eip712.message
       );
 
-      const handleContractPairs = handles.map((handle) => ({
+      const handleContractPairs = nonZeroHandles.map((handle) => ({
         handle,
         contractAddress,
       }));
 
-      return instance.userDecrypt(
+      const partial = await instance.userDecrypt(
         handleContractPairs,
         keypair.privateKey,
         keypair.publicKey,
@@ -267,6 +284,12 @@ export function NFTDashboard() {
         startTimeStamp,
         durationDays
       );
+
+      // Merge decrypted non-zero results with zero-handle defaults
+      for (const key of Object.keys(partial)) {
+        result[key] = partial[key];
+      }
+      return result;
     },
     [instance, address, signer]
   );
