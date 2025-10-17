@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { parseAbiItem } from 'viem';
 import { sepolia } from 'wagmi/chains';
 import { useAccount, usePublicClient } from 'wagmi';
 import { ethers } from 'ethers';
@@ -21,7 +20,7 @@ type BalanceState = {
 };
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-const transferEvent = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)');
+// No event usage per requirements
 
 export function NFTDashboard() {
   const { address, chain } = useAccount();
@@ -49,72 +48,124 @@ export function NFTDashboard() {
 
     setIsLoadingTokens(true);
     try {
-      const logs = await publicClient.getLogs({
+      // Enumerate tokens without using events: scan 1..totalMinted and check ownerOf
+      const totalMinted = (await publicClient.readContract({
         address: ZAMA_NFT_ADDRESS,
-        event: transferEvent,
-        args: { to: address },
-        fromBlock: 0n,
-        toBlock: 'latest',
-      });
+        abi: ZAMA_NFT_ABI,
+        functionName: 'totalMinted',
+      })) as bigint;
 
-      const uniqueIds = Array.from(
-        new Set(
-          logs
-            .map((log) => log.args?.tokenId as bigint | undefined)
-            .filter((id): id is bigint => id !== undefined)
-        )
-      );
-
-      if (uniqueIds.length === 0) {
+      if (!totalMinted || totalMinted === 0n) {
         setTokens([]);
         return;
       }
 
-      const tokenDetails = await Promise.all(
-        uniqueIds.map(async (tokenId) => {
-          try {
-            const owner = (await publicClient.readContract({
-              address: ZAMA_NFT_ADDRESS,
-              abi: ZAMA_NFT_ABI,
-              functionName: 'ownerOf',
-              args: [tokenId],
-            })) as string;
+      const ownerLower = address.toLowerCase();
+      const ids: bigint[] = Array.from({ length: Number(totalMinted) }, (_, i) => BigInt(i + 1));
 
-            if (owner.toLowerCase() !== address.toLowerCase()) {
-              return null;
+      // Chunk helper
+      const chunk = <T,>(arr: T[], size: number) => arr.reduce<T[][]>((acc, _, i) => (i % size === 0 ? [...acc, arr.slice(i, i + size)] : acc), []);
+      const idChunks = chunk(ids, 100);
+
+      const ownedIds: bigint[] = [];
+      for (const group of idChunks) {
+        // Prefer multicall to minimize RPC roundtrips
+        const calls = group.map((tokenId) => ({
+          address: ZAMA_NFT_ADDRESS as `0x${string}`,
+          abi: ZAMA_NFT_ABI as any,
+          functionName: 'ownerOf',
+          args: [tokenId],
+        }));
+
+        let results: any[] | null = null;
+        try {
+          // @ts-ignore viem supports multicall on publicClient
+          const res = await (publicClient as any).multicall({ contracts: calls, allowFailure: true });
+          results = res;
+        } catch {
+          // Fallback to sequential calls if multicall is not available
+          results = await Promise.all(
+            calls.map(async (c) => {
+              try {
+                const value = (await publicClient.readContract(c)) as string;
+                return { status: 'success', result: value };
+              } catch (e) {
+                return { status: 'failure', error: e };
+              }
+            })
+          );
+        }
+
+        results.forEach((r, idx) => {
+          if (r && r.status === 'success' && typeof r.result === 'string') {
+            if (r.result.toLowerCase() === ownerLower) {
+              ownedIds.push(group[idx]);
             }
-
-            const [encryptedAllocation, isClaimed] = await Promise.all([
-              publicClient.readContract({
-                address: ZAMA_NFT_ADDRESS,
-                abi: ZAMA_NFT_ABI,
-                functionName: 'getEncryptedAllocation',
-                args: [tokenId],
-              }),
-              publicClient.readContract({
-                address: ZAMA_NFT_ADDRESS,
-                abi: ZAMA_NFT_ABI,
-                functionName: 'isRewardClaimed',
-                args: [tokenId],
-              }),
-            ]);
-
-            return {
-              tokenId,
-              encryptedAllocation: encryptedAllocation as string,
-              isClaimed: Boolean(isClaimed),
-            };
-          } catch (error) {
-            console.error('Failed to load token data', error);
-            return null;
           }
-        })
-      );
+        });
+      }
 
-      const filtered = tokenDetails.filter((token): token is { tokenId: bigint; encryptedAllocation: string; isClaimed: boolean } => token !== null);
+      if (ownedIds.length === 0) {
+        setTokens([]);
+        return;
+      }
+
+      // Load token details for owned IDs
+      const detailChunks = chunk(ownedIds, 100);
+      const details: { tokenId: bigint; encryptedAllocation: string; isClaimed: boolean }[] = [];
+      for (const group of detailChunks) {
+        const allocCalls = group.map((tokenId) => ({
+          address: ZAMA_NFT_ADDRESS as `0x${string}`,
+          abi: ZAMA_NFT_ABI as any,
+          functionName: 'getEncryptedAllocation',
+          args: [tokenId],
+        }));
+        const claimedCalls = group.map((tokenId) => ({
+          address: ZAMA_NFT_ADDRESS as `0x${string}`,
+          abi: ZAMA_NFT_ABI as any,
+          functionName: 'isRewardClaimed',
+          args: [tokenId],
+        }));
+
+        let allocRes: any[];
+        let claimRes: any[];
+        try {
+          // @ts-ignore
+          allocRes = await (publicClient as any).multicall({ contracts: allocCalls, allowFailure: true });
+          // @ts-ignore
+          claimRes = await (publicClient as any).multicall({ contracts: claimedCalls, allowFailure: true });
+        } catch {
+          allocRes = await Promise.all(
+            allocCalls.map(async (c) => {
+              try {
+                const v = (await publicClient.readContract(c)) as string;
+                return { status: 'success', result: v };
+              } catch (e) {
+                return { status: 'failure', error: e };
+              }
+            })
+          );
+          claimRes = await Promise.all(
+            claimedCalls.map(async (c) => {
+              try {
+                const v = (await publicClient.readContract(c)) as boolean;
+                return { status: 'success', result: v };
+              } catch (e) {
+                return { status: 'failure', error: e };
+              }
+            })
+          );
+        }
+
+        group.forEach((tokenId, i) => {
+          const enc = allocRes[i]?.status === 'success' ? (allocRes[i].result as string) : '0x0';
+          const claimed = claimRes[i]?.status === 'success' ? Boolean(claimRes[i].result) : false;
+          details.push({ tokenId, encryptedAllocation: enc, isClaimed: claimed });
+        });
+      }
 
       setTokens((previous) =>
-        filtered.map((token) => {
+        details.map((token) => {
           const existing = previous.find((item) => item.tokenId === token.tokenId);
           return {
             tokenId: token.tokenId,
