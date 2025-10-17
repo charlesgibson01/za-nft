@@ -35,8 +35,8 @@ export function NFTDashboard() {
   const [isDecryptingBalance, setIsDecryptingBalance] = useState(false);
 
   const networkMismatch = chain && chain.id !== sepolia.id;
-  const nftConfigured = ZAMA_NFT_ADDRESS !== ZERO_ADDRESS;
-  const czamaConfigured = CONFIDENTIAL_ZAMA_ADDRESS !== ZERO_ADDRESS;
+  const nftConfigured = String(ZAMA_NFT_ADDRESS).toLowerCase() !== ZERO_ADDRESS.toLowerCase();
+  const czamaConfigured = String(CONFIDENTIAL_ZAMA_ADDRESS).toLowerCase() !== ZERO_ADDRESS.toLowerCase();
 
   const configurationReady = nftConfigured && czamaConfigured;
 
@@ -77,11 +77,11 @@ export function NFTDashboard() {
           args: [tokenId],
         }));
 
-        let results: any[] | null = null;
+        let results: any[] = [];
         try {
           // @ts-ignore viem supports multicall on publicClient
           const res = await (publicClient as any).multicall({ contracts: calls, allowFailure: true });
-          results = res;
+          results = res as any[];
         } catch {
           // Fallback to sequential calls if multicall is not available
           results = await Promise.all(
