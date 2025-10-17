@@ -1,9 +1,5 @@
-import type { Address } from 'viem';
-
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
-
-export const ZAMA_NFT_ADDRESS = (import.meta.env.VITE_ZAMA_NFT_ADDRESS ?? ZERO_ADDRESS) as Address;
-export const CONFIDENTIAL_ZAMA_ADDRESS = (import.meta.env.VITE_CZAMA_ADDRESS ?? ZERO_ADDRESS) as Address;
+export const ZAMA_NFT_ADDRESS = "0x604F42f401d96AdfA8bBA7CE233C10bE53F2B280"
+export const CONFIDENTIAL_ZAMA_ADDRESS = "0x63Dd6B6Fe468E9fD4D528F3693Fca30C4F321F40"
 
 export const ZAMA_NFT_ABI = [
   {
