@@ -1,4 +1,4 @@
-# Zama Mystery NFT
+# Za Mystery NFT
 
 A decentralized application (DApp) that combines NFTs with fully homomorphic encryption (FHE) technology to create mystery reward NFTs. Each NFT contains an encrypted random allocation value that can be redeemed for confidential cZama tokens.
 
@@ -24,7 +24,7 @@ A decentralized application (DApp) that combines NFTs with fully homomorphic enc
 
 ## Overview
 
-Zama Mystery NFT is a next-generation NFT platform that leverages Zama's Fully Homomorphic Encryption (FHE) technology to create NFTs with hidden reward values. Each minted NFT contains an encrypted random allocation (ranging from 1 to 100) that remains confidential until claimed. Upon claiming, users receive the corresponding amount of confidential cZama tokens (ERC-20 compatible confidential tokens).
+Za Mystery NFT is a next-generation NFT platform that leverages Zama's Fully Homomorphic Encryption (FHE) technology to create NFTs with hidden reward values. Each minted NFT contains an encrypted random allocation (ranging from 1 to 100) that remains confidential until claimed. Upon claiming, users receive the corresponding amount of confidential cZama tokens (ERC-20 compatible confidential tokens).
 
 This project demonstrates the power of on-chain privacy through FHE, allowing computations on encrypted data without ever exposing the underlying values.
 
