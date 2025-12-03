@@ -5,11 +5,11 @@ import {ERC721, ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/ext
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {FHE, euint64} from "@fhevm/solidity/lib/FHE.sol";
-import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
+import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 
 import {ConfidentialZama} from "./ConfidentialZama.sol";
 
-contract ZamaNFT is ERC721URIStorage, Ownable, SepoliaConfig {
+contract ZamaNFT is ERC721URIStorage, Ownable, ZamaEthereumConfig {
     uint256 private constant MIN_ALLOCATION = 1;
     uint256 private constant MAX_ALLOCATION = 100;
 
